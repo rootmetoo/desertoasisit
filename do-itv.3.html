@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DO-IT // Terminal</title>
+  <meta name="description" content="Retro 90's hacker-style interactive terminal homepage" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --term-fg: #6cff6c;      /* neon green */
+      --term-dim: #2ec62e;     /* dim green */
+      --term-bg: #000000;      /* black */
+      --frame:  #0f3b0f;       /* deep green tint */
+      --accent: #00ff9c;       /* accent */
+      --crt-scanline-opacity: .16; /* set to 0 to disable */
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--term-bg);
+      color: var(--term-fg);
+      font-family: 'VT323', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+      letter-spacing: 0.2px;
+      line-height: 1.35;
+      overflow: hidden;
+    }
+
+    /* Centered layout */
+    .wrap {
+      position: fixed; inset: 0; display: grid; place-items: center;
+      padding: clamp(10px, 3vw, 28px);
+    }
+
+    /* Frame */
+    .frame {
+      width: min(1100px, 96vw);
+      height: min(720px, 88vh);
+      background: #001500;
+      border: 2px solid var(--frame);
+      box-shadow: 0 0 0 2px #001000 inset, 0 0 40px #001f00, 0 0 120px #002800 inset;
+      border-radius: 10px;
+      display: grid;
+      grid-template-rows: 38px 1fr 42px;
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    /* Title bar */
+    .titlebar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 10px; border-bottom: 1px solid var(--frame);
+      background: linear-gradient(180deg, rgba(0,35,0,.5), rgba(0,0,0,0));
+    }
+    .lights { display: flex; gap: 6px; }
+    .light { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #053;
+      box-shadow: 0 0 10px currentColor; }
+    .light.red{ color:#ff4d4d; background:#2a0000; }
+    .light.yellow{ color:#ffd24d; background:#2a2300; }
+    .light.green{ color:#33ff66; background:#002a09; }
+    .title { font-size: 22px; color: var(--accent); opacity: .9; }
+
+    /* Terminal */
+    .terminal {
+      position: relative; overflow: auto; padding: 16px; scrollbar-width: thin;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(0,0,0,0),
+        rgba(0,0,0,0) 2px,
+        rgba(0,0,0,var(--crt-scanline-opacity)) 3px,
+        rgba(0,0,0,0) 4px
+      );
+      text-shadow: 0 0 6px rgba(0, 255, 90, .35);
+    }
+
+    .terminal::-webkit-scrollbar { width: 8px; }
+    .terminal::-webkit-scrollbar-thumb { background: #083; }
+
+    .line { white-space: pre-wrap; word-break: break-word; }
+    .dim { color: var(--term-dim); opacity: .8; }
+
+    /* Prompt */
+    .prompt-line { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: center; margin-top: 6px; }
+    .prompt {
+      color: var(--accent);
+    }
+    .input {
+      width: 100%;
+      background: transparent; border: none; outline: none; color: var(--term-fg);
+      font: inherit; caret-color: var(--term-fg);
+    }
+
+    .footer { border-top: 1px solid var(--frame); display: flex; justify-content: space-between; align-items: center; padding: 0 10px; color: var(--term-dim); }
+
+    /* Blink cursor effect for aesthetic header */
+    .cursor { display:inline-block; width: 10px; background: var(--term-fg); animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* Matrix rain canvas */
+    /* Updated: keep canvas inside terminal and cover it fully */
+    canvas#matrix { position: absolute; inset: 0; z-index: 0; opacity: .21; pointer-events: none; }
+
+    /* Responsive improvements */
+    @media (max-width: 520px) {
+      .frame { grid-template-rows: 32px 1fr 38px; }
+      .title { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="frame" role="application" aria-label="Interactive terminal">
+      <div class="titlebar">
+        <div class="lights" aria-hidden="true">
+          <div class="light red"></div>
+          <div class="light yellow"></div>
+          <div class="light green"></div>
+        </div>
+        <div class="title">DESERT OASIS INFORMATION TECHNOLOGIES :: TERMINAL</div>
+      </div>
+
+      <div id="term" class="terminal" tabindex="0" aria-live="polite" aria-atomic="false">
+        <!-- Moved canvas into terminal so it fills the terminal area -->
+        <canvas id="matrix" aria-hidden="true"></canvas>
+        <div class="line dim">Booting DO-IT/NET v1.0 … OK</div>
+        <div class="line dim">Type <span class="">help</span> to get started. Press <span>↑/↓</span> for history.</div>
+        <div class="line"> </div>
+      </div>
+
+      <div class="footer">
+        <div>▲▼ history &nbsp;•&nbsp; <span class="dim">scanlines:</span> on &nbsp;•&nbsp; theme: neon</div>
+        <div class="dim">© <span id="year"></span> DO‑IT</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // -------- Matrix rain (toggle with `matrix` command) --------
+    const matrixCanvas = document.getElementById('matrix');
+    const ctx = matrixCanvas.getContext('2d');
+    let matrixActive = false; let matrixAnim;
+    function fitCanvas(){
+      // Updated: size to the terminal's box so it fully covers the background
+      const p = matrixCanvas.parentElement.getBoundingClientRect();
+      matrixCanvas.width = Math.floor(p.width);
+      matrixCanvas.height = Math.floor(p.height);
+    }
+    const katakana = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン';
+    const alphanum = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    const glyphs = (katakana + alphanum);
+    let drops = [];
+    function startMatrix(){
+      fitCanvas();
+      const fontSize = 16; const columns = Math.ceil(matrixCanvas.width / fontSize);
+      drops = Array.from({length: columns}, () => Math.floor(Math.random()*matrixCanvas.height/fontSize));
+      ctx.font = fontSize + 'px VT323, monospace';
+      matrixActive = true;
+      const step = () => {
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(0,0,matrixCanvas.width,matrixCanvas.height);
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--term-fg');
+        drops.forEach((y, i) => {
+          const text = glyphs[Math.floor(Math.random()*glyphs.length)];
+          const x = i * 16;
+          ctx.fillText(text, x, y * 16);
+          if (y * 16 > matrixCanvas.height && Math.random() > 0.975) drops[i] = 0; else drops[i] = y + 1;
+        });
+        matrixAnim = requestAnimationFrame(step);
+      };
+      cancelAnimationFrame(matrixAnim);
+      step();
+    }
+    function stopMatrix(){ matrixActive=false; cancelAnimationFrame(matrixAnim); ctx.clearRect(0,0,matrixCanvas.width,matrixCanvas.height); }
+    window.addEventListener('resize', () => { if (matrixActive) { fitCanvas(); } });
+
+    // -------- Terminal Engine --------
+    const term = document.getElementById('term');
+    const year = document.getElementById('year');
+    year.textContent = new Date().getFullYear();
+
+    let history = [];
+    let hIndex = -1;
+
+    // Create prompt line
+    function makePrompt(){
+      const row = document.createElement('div'); row.className = 'prompt-line';
+      const prompt = document.createElement('span'); prompt.className = 'prompt'; prompt.textContent = 'guest@do-it:~$';
+      const input = document.createElement('input'); input.className = 'input'; input.setAttribute('aria-label', 'terminal input'); input.autocapitalize = 'off'; input.autocomplete = 'off'; input.spellcheck = false;
+      row.appendChild(prompt); row.appendChild(input); term.appendChild(row); input.focus();
+
+      // History navigation
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowUp') {
+          e.preventDefault(); if (history.length){ hIndex = Math.max(0, hIndex - 1); input.value = history[hIndex] || ''; input.setSelectionRange(input.value.length, input.value.length); }
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault(); if (history.length){ hIndex = Math.min(history.length, hIndex + 1); input.value = history[hIndex] || ''; input.setSelectionRange(input.value.length, input.value.length); }
+        } else if (e.key === 'Enter') { e.preventDefault(); run(input); }
+      });
+    }
+
+    function print(text='', cls='line'){
+      const div = document.createElement('div'); div.className = cls; div.textContent = text; term.appendChild(div); term.scrollTop = term.scrollHeight; return div;
+    }
+
+    function run(input){
+      const cmd = input.value.trim();
+      const promptRow = input.parentElement;
+      promptRow.removeChild(input);
+      const frozen = document.createElement('span'); frozen.textContent = ' ' + cmd; promptRow.appendChild(frozen);
+
+      if (cmd) { history.push(cmd); hIndex = history.length; }
+
+      execute(cmd).then(() => { makePrompt(); term.scrollTop = term.scrollHeight; });
+    }
+
+    const commands = {
+      help(){
+        print('Available commands:');
+        print('  help, about, banner, contact, ls, projects, echo <text>, clear, date, time, color <green|amber|white>, scanlines <on|off>, matrix <on|off>');
+      },
+      about(){
+        print('Desert Oasis Information Technologies (DO-IT)');
+        print('Security‑minded IT consulting: infrastructure, DFIR, cloud, automation.');
+      },
+      contact(){
+        print('Email: hello@example.com');
+        print('LinkedIn: https://www.linkedin.com');
+      },
+      banner(){
+        print(String.raw`  ____   ___    ___ _____ `);
+        print(String.raw` |  _ \ / _ \  |_ _|_   _|`);
+        print(String.raw` | | | | | | |  | |  | |`);
+        print(String.raw` | |_| | |_| |  | |  | |`);
+        print(String.raw` |____/ \___/   |_|  |_| `);
+        print('  Desert Oasis Information Technologies');
+      },
+      ls(){
+        print('README  about.txt  projects  contact.me  secrets -> try "help"');
+      },
+      projects(){
+        print('- ISO27001 readiness');
+        print('- Cloud migrations (Google Workspace → M365)');
+        print('- Incident response & threat hunting');
+      },
+      echo(args){ print(args.join(' ')); },
+      clear(){ term.innerHTML = ''; },
+      date(){ print(new Date().toDateString()); },
+      time(){ print(new Date().toLocaleTimeString()); },
+      color(args){
+        const c = (args[0]||'').toLowerCase();
+        const map = { green: ['#6cff6c','#2ec62e'], amber: ['#ffd37a','#d6a552'], white: ['#e6fff6','#aee5d4'] };
+        if (map[c]){ document.documentElement.style.setProperty('--term-fg', map[c][0]); document.documentElement.style.setProperty('--term-dim', map[c][1]); print(`color → ${c}`); } else { print('Usage: color <green|amber|white>'); }
+      },
+      scanlines(args){
+        const v = (args[0]||'').toLowerCase();
+        if (v === 'on'){ document.documentElement.style.setProperty('--crt-scanline-opacity', '.16'); print('scanlines → on'); }
+        else if (v === 'off'){ document.documentElement.style.setProperty('--crt-scanline-opacity', '0'); print('scanlines → off'); }
+        else { print('Usage: scanlines <on|off>'); }
+      },
+      matrix(args){
+        const v = (args[0]||'').toLowerCase();
+        if (v === 'on'){ startMatrix(); print('matrix rain → on'); }
+        else if (v === 'off'){ stopMatrix(); print('matrix rain → off'); }
+        else { matrixActive ? (stopMatrix(), print('matrix rain → off')) : (startMatrix(), print('matrix rain → on')); }
+      }
+    };
+
+    async function execute(raw){
+      if (!raw){ return; }
+      const [cmd, ...args] = raw.split(/\s+/);
+      const fn = commands[cmd.toLowerCase()];
+      if (!fn){ print(`Command not found: ${cmd}. Try "help".`); return; }
+      try { await fn(args); } catch (e){ print('Error: ' + e.message); }
+    }
+
+    // Boot prompt
+    makePrompt();
+
+    // Focus terminal on click / any key
+    term.addEventListener('click', () => {
+      const lastInput = term.querySelector('.prompt-line .input');
+      if (lastInput) lastInput.focus();
+    });
+    window.addEventListener('keydown', (e) => {
+      const lastInput = term.querySelector('.prompt-line .input');
+      if (lastInput && document.activeElement !== lastInput) {
+        // Avoid stealing focus from input/textarea if ever added elsewhere
+        if (!['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) lastInput.focus();
+      }
+    });
+  </script>
+</body>
+</html>
