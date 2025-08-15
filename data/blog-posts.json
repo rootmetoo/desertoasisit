@@ -1,0 +1,47 @@
+{
+  "lastUpdated": "2024-01-15T10:00:00Z",
+  "posts": [
+    {
+      "id": "1",
+      "title": "Why Multi-Site Networks Keep Failing (And How to Fix Them)",
+      "excerpt": "The most common network issues I see in growing businesses aren't technical—they're organizational. Here's how to build networks that scale with your business.",
+      "content": "Full article content would go here...",
+      "author": "William Graham",
+      "date": "2024-01-15",
+      "category": "Networking",
+      "readTime": "8 min read",
+      "tags": ["Networking", "Multi-site", "Best Practices"],
+      "featured": true,
+      "source": "RSS Feed",
+      "url": "https://example.com/full-article-1"
+    },
+    {
+      "id": "2",
+      "title": "Cloud Migration Checklist: Don't Skip These 5 Critical Steps",
+      "excerpt": "I've seen too many cloud migrations fail because teams rush the planning phase. Here's the checklist I use to ensure smooth, zero-downtime migrations.",
+      "content": "Full article content would go here...",
+      "author": "William Graham",
+      "date": "2024-01-08",
+      "category": "Cloud",
+      "readTime": "12 min read",
+      "tags": ["Cloud Migration", "Planning", "Zero Downtime"],
+      "featured": false,
+      "source": "RSS Feed",
+      "url": "https://example.com/full-article-2"
+    },
+    {
+      "id": "3",
+      "title": "The Hidden Cost of Poor IT Documentation",
+      "excerpt": "Your team is spending hours solving the same problems over and over. Here's how proper documentation can save you thousands in productivity losses.",
+      "content": "Full article content would go here...",
+      "author": "William Graham",
+      "date": "2024-01-01",
+      "category": "Documentation",
+      "readTime": "6 min read",
+      "tags": ["Documentation", "Productivity", "Best Practices"],
+      "featured": false,
+      "source": "RSS Feed",
+      "url": "https://example.com/full-article-3"
+    }
+  ]
+}
